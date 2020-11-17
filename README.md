@@ -1,3 +1,3 @@
 ```
-Seat Booking site to demonstrate Microservice Architecture using Message-Queues 📻
+Seat Booking system to demonstrate Microservice Architecture using Message-Queues 📻
 ```
