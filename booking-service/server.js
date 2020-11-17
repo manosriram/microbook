@@ -1,9 +1,52 @@
 const express = require("express");
 const app = express();
 const PORT = 5001;
+var mysql = require("mysql");
+const amqp = require("amqplib");
 
-app.get("/", (req, res) => {
-    res.send("Hello from booking service");
+// Channel Message Structure -> { job: "jobName", ... };
+
+var connection = mysql.createConnection({
+    host: "localhost",
+    user: "root",
+    password: "password",
+    database: "microbook"
+});
+connection.connect();
+var channel;
+
+// Functions.
+// Initiate Queue Connection and create queue (if not present already)
+async function connect() {
+    const queueCon = await amqp.connect("amqp://localhost:5672");
+    channel = await queueCon.createChannel();
+    await channel.assertQueue("microqueue");
+
+    const result = await channel.consume("microqueue", message => {
+        const input = JSON.parse(message.content.toString());
+
+        if (input.job === "booking") {
+            return input.result;
+        } else {
+            console.log(input);
+        }
+        channel.ack(message);
+    });
+}
+connect();
+
+async function bookSeat(seatNumber) {
+    const result = await channel.sendToQueue(
+        "microqueue",
+        Buffer.from(JSON.stringify({ job: "payment", seat: seatNumber }))
+    );
+}
+
+// Route handlers
+app.get("/pay/:seatNumber", async (req, res) => {
+    const { seatNumber } = req.params;
+
+    bookSeat(seatNumber);
 });
 
 app.listen(PORT, () => console.log(`Server at ${PORT}`));
