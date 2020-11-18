@@ -18,27 +18,26 @@ var channel;
 // Functions.
 // Initiate Queue Connection and create queue (if not present already)
 async function connect() {
-    const queueCon = await amqp.connect("amqp://localhost:5672");
-    channel = await queueCon.createChannel();
-    await channel.assertQueue("microqueue");
+    try {
+        const queueCon = await amqp.connect("amqp://localhost:5672");
+        channel = await queueCon.createChannel();
+        await channel.assertQueue("bookingqueue");
 
-    const result = await channel.consume("microqueue", message => {
-        const input = JSON.parse(message.content.toString());
-
-        if (input.job === "booking") {
-            return input.result;
-        } else {
+        const result = await channel.consume("bookingqueue", message => {
+            const input = JSON.parse(message.content.toString());
+            channel.ack(message);
             console.log(input);
-        }
-        channel.ack(message);
-    });
+        });
+    } catch (er) {
+        console.log(er);
+    }
 }
 connect();
 
 async function bookSeat(seatNumber) {
     const result = await channel.sendToQueue(
-        "microqueue",
-        Buffer.from(JSON.stringify({ job: "payment", seat: seatNumber }))
+        "paymentqueue",
+        Buffer.from(JSON.stringify({ seat: seatNumber }))
     );
 }
 
