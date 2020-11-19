@@ -25,8 +25,20 @@ async function connect() {
 
         const result = await channel.consume("bookingqueue", message => {
             const input = JSON.parse(message.content.toString());
+            console.log(`Booking Received, ${JSON.stringify(input)}`);
+            if (input.success === true) {
+                connection.query(
+                    "update seats set booked = 'T' where id = ?",
+                    input.seat,
+                    (err, result) => {
+                        if (err) console.error(err);
+                        else {
+                            console.log("done");
+                        }
+                    }
+                );
+            }
             channel.ack(message);
-            console.log(input);
         });
     } catch (er) {
         console.log(er);
@@ -35,17 +47,40 @@ async function connect() {
 connect();
 
 async function bookSeat(seatNumber) {
-    const result = await channel.sendToQueue(
-        "paymentqueue",
-        Buffer.from(JSON.stringify({ seat: seatNumber }))
-    );
+    return new Promise((resolve, reject) => {
+        connection.query(
+            "select * from seats where id = ? and booked='F'",
+            seatNumber,
+            (err, result) => {
+                if (result[0]) {
+                    channel.sendToQueue(
+                        "paymentqueue",
+                        Buffer.from(JSON.stringify({ seat: seatNumber }))
+                    );
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            }
+        );
+    });
 }
 
 // Route handlers
 app.get("/pay/:seatNumber", async (req, res) => {
-    const { seatNumber } = req.params;
+    let { seatNumber } = req.params;
+    seatNumber = parseInt(seatNumber);
+    if (seatNumber > 25 || seatNumber < 1)
+        return res.send("Invalid Seat number");
+    else if ((await bookSeat(seatNumber)) === false)
+        return res.send("Seat not available");
+    else return res.send("Seat booked!");
+});
 
-    bookSeat(seatNumber);
+app.get("/", (req, res) => {
+    connection.query("select * from seats", (err, result) => {
+        return res.json(result);
+    });
 });
 
 app.listen(PORT, () => console.log(`Server at ${PORT}`));

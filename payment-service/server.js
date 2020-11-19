@@ -10,14 +10,16 @@ async function connect() {
 
     const result = await channel.consume("paymentqueue", async message => {
         const input = JSON.parse(message.content.toString());
-        console.log(input); // input.seat
+        console.log(`Payment Received, ${JSON.stringify(input)}`);
         channel.ack(message);
 
+        // Payment processing, if succeeded; continue. Else, throw error.
         await channel.sendToQueue(
             "bookingqueue",
             Buffer.from(
                 JSON.stringify({
-                    seat: input.seat
+                    seat: input.seat,
+                    success: true
                 })
             )
         );
